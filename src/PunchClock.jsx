@@ -68,12 +68,12 @@ function fmtDate(dateStr) {
   var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return days[d.getDay()] + " " + months[d.getMonth()] + " " + d.getDate();
 }
-function calcHours(clockIn, clockOut) {
+function calcHours(clockIn, clockOut, clockInAdj, clockOutAdj) {
   if (!clockIn || !clockOut) return null;
   var inTime = new Date(clockIn);
   var outTime = new Date(clockOut);
-  var adjIn = new Date(inTime.getTime() + 30 * 60000);
-  var adjOut = new Date(outTime.getTime() - 30 * 60000);
+  var adjIn = clockInAdj ? new Date(inTime.getTime() + 30 * 60000) : inTime;
+  var adjOut = clockOutAdj ? new Date(outTime.getTime() - 30 * 60000) : outTime;
   var diffHours = (adjOut - adjIn) / 3600000;
   var total = diffHours - 0.5;
   return total > 0 ? total : 0;
@@ -188,20 +188,20 @@ export default function PunchClock() {
   function doClockIn(adjusted) {
     if (clockedIn) return;
     var now = new Date();
-    var ts = adjusted ? new Date(now.getTime() + 30 * 60000).toISOString() : now.toISOString();
+    var ts = now.toISOString();
     var id = Date.now();
-    setEntries(function(prev) { return prev.concat([{ id: id, clockIn: ts, clockOut: null }]); });
+    setEntries(function(prev) { return prev.concat([{ id: id, clockIn: ts, clockOut: null, clockInAdj: !!adjusted, clockOutAdj: false }]); });
     setClockedIn({ id: id, time: ts });
     setClockInPrompt(false);
   }
   function doClockOut(adjusted) {
     if (!clockedIn) return;
     var now = new Date();
-    var ts = adjusted ? new Date(now.getTime() - 30 * 60000).toISOString() : now.toISOString();
+    var ts = now.toISOString();
     var cid = clockedIn.id;
     setEntries(function(prev) {
       return prev.map(function(e) {
-        return e.id === cid ? Object.assign({}, e, { clockOut: ts }) : e;
+        return e.id === cid ? Object.assign({}, e, { clockOut: ts, clockOutAdj: !!adjusted }) : e;
       });
     });
     setClockedIn(null);
@@ -219,7 +219,7 @@ export default function PunchClock() {
     var outDate = addOutTime ? new Date(addDate + "T" + addOutTime + ":00") : null;
     var id = Date.now();
     setEntries(function(prev) {
-      return prev.concat([{ id: id, clockIn: inDate.toISOString(), clockOut: outDate ? outDate.toISOString() : null }]);
+      return prev.concat([{ id: id, clockIn: inDate.toISOString(), clockOut: outDate ? outDate.toISOString() : null, clockInAdj: true, clockOutAdj: true }]);
     });
     setAddModal(false);
     setAddDate("");
@@ -269,7 +269,7 @@ export default function PunchClock() {
   var currentPeriodKey = getPeriodKey(now.toISOString());
   var currentPeriod = grouped.find(function(g) { return g.key === currentPeriodKey; });
   var currentHours = currentPeriod
-    ? currentPeriod.entries.reduce(function(sum, e) { return sum + (calcHours(e.clockIn, e.clockOut) || 0); }, 0)
+    ? currentPeriod.entries.reduce(function(sum, e) { return sum + (calcHours(e.clockIn, e.clockOut, e.clockInAdj, e.clockOutAdj) || 0); }, 0)
     : 0;
   var isClockedIn = !!clockedIn;
   return (
@@ -336,7 +336,7 @@ export default function PunchClock() {
           )}
           {/* PAY PERIODS */}
           {grouped.map(function(period) {
-            var totalHours = period.entries.reduce(function(sum, e) { return sum + (calcHours(e.clockIn, e.clockOut) || 0); }, 0);
+            var totalHours = period.entries.reduce(function(sum, e) { return sum + (calcHours(e.clockIn, e.clockOut, e.clockInAdj, e.clockOutAdj) || 0); }, 0);
             var isCurrentPeriod = period.key === currentPeriodKey;
             var overtime = totalHours > 80;
             return (
@@ -359,10 +359,10 @@ export default function PunchClock() {
                   </div>
                 </div>
                 {period.entries.slice().sort(function(a, b) { return new Date(b.clockIn) - new Date(a.clockIn); }).map(function(entry) {
-                  var hours = calcHours(entry.clockIn, entry.clockOut);
+                  var hours = calcHours(entry.clockIn, entry.clockOut, entry.clockInAdj, entry.clockOutAdj);
                   var isActive = clockedIn && clockedIn.id === entry.id;
-                  var adjIn = entry.clockIn ? new Date(new Date(entry.clockIn).getTime() + 30 * 60000) : null;
-                  var adjOut = entry.clockOut ? new Date(new Date(entry.clockOut).getTime() - 30 * 60000) : null;
+                  var adjIn = (entry.clockIn && entry.clockInAdj) ? new Date(new Date(entry.clockIn).getTime() + 30 * 60000) : null;
+                  var adjOut = (entry.clockOut && entry.clockOutAdj) ? new Date(new Date(entry.clockOut).getTime() - 30 * 60000) : null;
                   return (
                     <div key={entry.id} className="day-row">
                       <div style={{minWidth:80}}>
@@ -471,7 +471,7 @@ export default function PunchClock() {
             {addDate && addInTime && addOutTime && (
               <div style={{background:"#1a2a1a", border:"1px solid #4ade8033", borderRadius:8, padding:"10px 12px", marginBottom:16, fontSize:12, color:C.green}}>
                 Hours: {(function() {
-                  var h = calcHours(new Date(addDate + "T" + addInTime).toISOString(), new Date(addDate + "T" + addOutTime).toISOString());
+                  var h = calcHours(new Date(addDate + "T" + addInTime).toISOString(), new Date(addDate + "T" + addOutTime).toISOString(), true, true);
                   return h ? fmtHours(roundTo2(h)) : "--";
                 })()}
               </div>
