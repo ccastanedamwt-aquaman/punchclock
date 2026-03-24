@@ -381,9 +381,9 @@ export default function PunchClock() {
                             {entry.clockOut ? fmtTime(entry.clockOut) : "---"}
                           </span>
                         </div>
-                        {adjIn && adjOut && (
+                        {(adjIn || adjOut) && (
                           <div style={{fontSize:10, color:C.muted, marginTop:2}}>
-                            Adj: {fmtTime(adjIn.toISOString())} → {fmtTime(adjOut.toISOString())}
+                            Adj: {adjIn ? fmtTime(adjIn.toISOString()) : fmtTime(entry.clockIn)} → {adjOut ? fmtTime(adjOut.toISOString()) : (entry.clockOut ? fmtTime(entry.clockOut) : "---")}
                           </div>
                         )}
                       </div>
